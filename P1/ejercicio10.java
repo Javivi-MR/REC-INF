@@ -7,7 +7,7 @@ public class ejercicio10 {
     {
         String cadena = "253.222.212.111";
 
-        Pattern pat = Pattern.compile("^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?).(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?).(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?).(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$");
+        Pattern pat = Pattern.compile("^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)[.]){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$");
         Matcher mat = pat.matcher(cadena);
 
         System.out.println("Para la cadena: " + cadena + " el resultado es: " + mat.matches());
