@@ -1,5 +1,6 @@
 import java.io.BufferedWriter;
 import java.io.File;
+import java.io.IOException;
 import java.util.LinkedList;
 import java.util.Queue;
 import java.net.URL;
@@ -7,59 +8,108 @@ import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Vector;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.jsoup.HttpStatusException;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.select.Elements;
 
-
+/**
+ * Clase que implementa un crawler
+ */
 public class Crawler {
-    private Queue<String> UrlQueue;
+    /**
+     * Atributos
+     */
+    private Queue<String> urlQueue;
     private Vector<String> visitedUrl;
     private String seedUrl;
-    private static int i = 0;
+    private static int actualFile = 0;
+    private Pattern esEspaniolaAbsoluta = Pattern.compile("https?:\\/\\/es\\.wikipedia\\.org\\/wiki\\/.*");
+    private Pattern esEspaniolaRelativa = Pattern.compile("\\/wiki\\/.*");
+
+    /**
+     * Constructor
+     * @param seedUrl
+     */
     public Crawler(String seedUrl) {
-        this.UrlQueue = new LinkedList<>();
+        this.urlQueue = new LinkedList<>();
         this.seedUrl = seedUrl;
         this.visitedUrl = new Vector<String>();
-        UrlQueue.add(seedUrl);
+        urlQueue.add(seedUrl);
     }
 
-    public void crawl() throws URISyntaxException, MalformedURLException, HttpStatusException, java.io.IOException {
-        while(!UrlQueue.isEmpty()){ // Mientras que existan urls que visitar:
+    /**
+     * Visita las urls de la cola
+     * @throws java.io.IOException
+     */
+    public void crawl() throws java.io.IOException {
+        while(!urlQueue.isEmpty()){ // Mientras que existan urls que visitar:
             // visitar la primera url de la cola
-            String actualUrl = UrlQueue.poll();
+            String actualUrl = urlQueue.poll();
+            visitedUrl.add(actualUrl);
             System.out.println("Crawling: " + actualUrl);
+
             Document doc = Jsoup.connect(actualUrl).get();
+            saveDocument(doc);
 
-            // Guardamos el contenido de la página en un archivo
-            File file = new File("./data/" + i + ".html");
-            BufferedWriter writer = new BufferedWriter(new java.io.FileWriter(file));
-            writer.write(doc.toString());
+            Vector<String> links = new Vector<String>();
+            links = getLinks(doc);
 
-            // Obtenemos los enlaces de la página que pertenezcan al dominio español (wikipedia.es)
-            Elements listaUrl = doc.select("a");
-            // Por cada enlace, si es relativo, lo convertimos a absoluto
-            for (int i = 0; i < listaUrl.size(); i++) {
-                String href = listaUrl.get(i).attr("href"); // Obtenemos el atributo href (link)
-
-                System.out.println("href: " + href);
-                if (href.startsWith("/") && !href.startsWith("//")) {
-                    // Tenemos que tener en cuenta que href si es relativo, empieza por /, y actualUrl termina por / por lo que tenemos que eliminar uno de los dos
-                    href = actualUrl.substring(0, actualUrl.length() - 1) + href;
-                }
-
-                if (href.startsWith("http") && (href.contains("es.wikipedia") || href.contains("wikipedia.es")) && !visitedUrl.contains(href)) {
-                    System.out.println("Añadiendo a la cola: " + href);
-                    UrlQueue.add(href);
+            for(int i = 0; i < links.size(); i++){
+                String link = links.get(i);
+                if(!visitedUrl.contains(link)){
+                    urlQueue.add(link);
+                    visitedUrl.add(link);
                 }
             }
-            visitedUrl.add(actualUrl);
 
-            if(UrlQueue.isEmpty()) writer.close();
-            i++;
+            System.out.println("Links encontrados: " + links.size());
+            System.out.println(links);
         }
+    }
 
+    /**
+     * Guarda el documento en la carpeta html
+     * @param doc
+     */
+    public void saveDocument(Document doc) throws IOException {
+        File file = new File("./data/" + actualFile + ".html");
+        BufferedWriter writer = new BufferedWriter(new java.io.FileWriter(file));
+        writer.write(doc.toString());
+        actualFile++;
+        writer.close();
+    }
+
+    /**
+     * Obtiene los links de un documento
+     * @param doc
+     * @return
+     */
+    public Vector<String> getLinks(Document doc) {
+        Vector<String> links = new Vector<String>();
+        Elements elements = doc.select("a[href]");
+        for(int i = 0; i < elements.size(); i++){
+            String link = elements.get(i).attr("href");
+            Matcher m = esEspaniolaAbsoluta.matcher(link);
+            if(m.matches()){
+                links.add(link);
+            }
+            else{
+                m = esEspaniolaRelativa.matcher(link);
+                if(m.matches()){
+                    try {
+                        URI uri = new URI(seedUrl);
+                        URL url = new URL(uri.getScheme(), uri.getHost(), link);
+                        links.add(url.toString());
+                    } catch (Exception e) {
+                        System.out.println("Error al parsear la url: " + e.getMessage());
+                    }
+                }
+            }
+        }
+        return links;
     }
 }
