@@ -1,7 +1,6 @@
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.security.KeyPair;
 import java.util.AbstractMap;
 import java.util.HashMap;
 import java.util.Map;
@@ -30,13 +29,18 @@ public class CargaArchivos {
             String contenido = Files.readString(file.toPath());
 
             contenido = contenido.toLowerCase();
-            contenido = contenido.replaceAll("[.,¿?¡!=:;]", "");
+            contenido = contenido.replaceAll("[.,¿?¡!=:;()+/*-]", "");
             // replace all double or more spaces with a single space
             contenido = contenido.replaceAll("\\s{2,}", " ");
             for(String stopWord : stopWords){
                 // replace only and only if the word is not in the middle of a word
                 contenido = contenido.replaceAll(" " + stopWord + " ", " ");
                 contenido = contenido.replaceAll("^" + stopWord + " ", "");
+                contenido = contenido.replaceAll(" " + stopWord + "$", "");
+                //replace if the word only has one character or is made of only numbers
+                contenido = contenido.replaceAll(" \\d+ ", " ");
+                //replace if the word is a single character
+                contenido = contenido.replaceAll(" \\w ", " ");
             }
             String[] contenidoPalabras = contenido.split(" ");
             String contenidoNuevo = "";
@@ -50,7 +54,7 @@ public class CargaArchivos {
             //write the new content into a new file with the same name in directory ./temp1/
             Files.writeString(new File("./temp1/" + file.getName()).toPath(), contenidoNuevo);
         }
-        this.files = new File("./temp1").listFiles();
+        this.files = new File("./temp1").listFiles(); //actualizar la lista de archivos
     }
 
     //ahora tenemos que calcular tf-idf para cada termino almacenado en allWords
@@ -84,20 +88,76 @@ public class CargaArchivos {
                     documentoContienePalabra++;
                 }
                 else{
-                    tf = 0.0;
-                    tfMap.put(file.getName(), tf);
+                    continue;
                 }
                 frecuenciaTermino = 0;
             }
             //calcular idf = log2(NumeroTotalDocumentos / NumeroDocumentosConTermino)
 
             idf = (double) Math.log((double) files.length / documentoContienePalabra) / Math.log(2);
-            System.out.println(idf + " ----------------------------- " + termino + documentoContienePalabra);
             //guardar en el mapa tf_idf
             tf_idf.put(termino, new AbstractMap.SimpleEntry<Double,HashMap<String,Double>>(idf, tfMap));
             //phosphoryl
         }
         System.out.println(tf_idf);
+        CrearJSON(tf_idf);
+    }
+
+    public void CrearJSON(Map<String, AbstractMap.SimpleEntry<Double,HashMap<String,Double>>> tf_idf) throws IOException {
+        //Hay que crear un JSON con la estructura de tf_idf
+        /*
+        {
+            "termino1": {
+                "idf": 1.0,
+                "tf": {
+                    "documento1": 1.0,
+                    "documento2": 1.0,
+                    "documento3": 1.0
+                }
+            },
+            "termino2": {
+                "idf": 1.0,
+                "tf": {
+                    "documento1": 1.0,
+                    "documento2": 1.0,
+                    "documento3": 1.0
+                }
+            }
+         */
+        String json = "{\n";
+        for(String termino : tf_idf.keySet()){
+            json += "\t\"" + termino + "\": {\n";
+            json += "\t\t\"idf\": " + tf_idf.get(termino).getKey() + ",\n";
+            json += "\t\t\"tf\": {\n";
+            for(String documento : tf_idf.get(termino).getValue().keySet()){
+                json += "\t\t\t\"" + documento + "\": " + tf_idf.get(termino).getValue().get(documento) + ",\n";
+            }
+            json = json.substring(0, json.length() - 2);
+            json += "\n\t\t}\n";
+            json += "\t},\n";
+        }
+        json = json.substring(0, json.length() - 2);
+        json += "\n}";
+        Files.writeString(new File("./obj/tf_idf.json").toPath(), json);
+
+        //Tambien hay que crear un JSON con cada documento y su numero de palabras
+        /*
+        {
+            "documento1": 1.0,
+            "documento2": 1.0,
+            "documento3": 1.0
+        }
+         */
+        json = "{\n";
+        for(File file : files){
+            String contenido = Files.readString(file.toPath());
+            String[] contenidoPalabras = contenido.split(" ");
+            json += "\t\"" + file.getName() + "\": " + contenidoPalabras.length + ",\n";
+        }
+        json = json.substring(0, json.length() - 2);
+        json += "\n}";
+        Files.writeString(new File("./obj/num_palabras.json").toPath(), json);
+
     }
 
     public static void main(String[] args) throws IOException {
