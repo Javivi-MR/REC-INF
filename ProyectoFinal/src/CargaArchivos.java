@@ -8,13 +8,25 @@ import java.util.Vector;
 
 import opennlp.tools.stemmer.PorterStemmer;
 
-public class CargaArchivos {
-    private  String folder;
-    private  File[] files;
-    private String[] stopWords;
-    private Vector<String> allWords;
-    private PorterStemmer stemmer;
 
+/**
+ * Clase que se encarga de cargar los archivos de la carpeta ./temp/, realizar a cada archivo un preprocesamiento, calcular tf-idf para cada termino, crear un JSON con la estructura de tf-idf y almacenarlo en la carpeta ./obj/
+ * @author Francisco Javier Molina Rojas y Isabel Becerra Losada
+ * @see <a href="https://av03-23-24.uca.es/moodle/pluginfile.php/10931/mod_resource/content/3/Enunciado_Proyecto_RECINF.pdf">Enunciado Proyecto</a>
+ */
+
+public class CargaArchivos {
+    private  String folder; //carpeta donde se encuentran los archivos
+    private  File[] files; //lista de archivos
+    private String[] stopWords; //lista de palabras que no aportan informacion
+    private Vector<String> allWords; //lista de todos los terminos de todos los documentos
+    private PorterStemmer stemmer; //stemmer para reducir las palabras a su raiz
+
+    /**
+     * Constructor de la clase CargaArchivos.
+     * @param folder String que contiene la ruta relativa haccia la carpeta donde se encuentran los archivos.
+     * @throws IOException Excepcion que se lanza si no se encuentra la carpeta.
+     */
     public CargaArchivos(String folder) throws IOException {
         this.folder = folder;
         this.files = new File(folder).listFiles();
@@ -24,27 +36,30 @@ public class CargaArchivos {
         this.allWords = new Vector<>();
     }
 
+    /**
+     * Metodo que se encarga de realizar un preprocesamiento a cada archivo de la carpeta ./temp/ y almacenar el resultado en la carpeta ./temp1/
+     * @see <a href="https://opennlp.apache.org/docs/1.9.3/apidocs/opennlp-tools/opennlp/tools/stemmer/PorterStemmer.html">PorterStemmer</a>
+     * @throws IOException Excepcion que se lanza si no se encuentra la carpeta.
+     */
     public void TransformarArchivos() throws IOException {
         for (File file : files) {
             String contenido = Files.readString(file.toPath());
 
+            //preprocesamiento
             contenido = contenido.toLowerCase();
-            contenido = contenido.replaceAll("[.,¿?¡!=:;()+/*-]", "");
-            // replace all double or more spaces with a single space
-            contenido = contenido.replaceAll("\\s{2,}", " ");
+            contenido = contenido.replaceAll("[.,¿?¡!=:;()+/*-]", ""); //eliminar signos de puntuacion
+            contenido = contenido.replaceAll("[\"']", ""); //eliminar comillas
+            contenido = contenido.replaceAll("\\s{2,}", " "); //eliminar espacios en blanco
             for(String stopWord : stopWords){
-                // replace only and only if the word is not in the middle of a word
-                contenido = contenido.replaceAll(" " + stopWord + " ", " ");
-                contenido = contenido.replaceAll("^" + stopWord + " ", "");
-                contenido = contenido.replaceAll(" " + stopWord + "$", "");
-                //replace if the word only has one character or is made of only numbers
-                contenido = contenido.replaceAll(" \\d+ ", " ");
-                //replace if the word is a single character
-                contenido = contenido.replaceAll(" \\w ", " ");
+                contenido = contenido.replaceAll(" " + stopWord + " ", " "); //eliminar stop words
+                contenido = contenido.replaceAll("^" + stopWord + " ", ""); //eliminar stop words al principio
+                contenido = contenido.replaceAll(" " + stopWord + "$", ""); //eliminar stop words al final
+                contenido = contenido.replaceAll(" \\d+ ", " "); //eliminar numeros (palabras cuyos caracteres son todos digitos)
+                contenido = contenido.replaceAll(" \\w ", " "); //eliminar palabras de un solo caracter (poca informacion)
             }
-            String[] contenidoPalabras = contenido.split(" ");
-            String contenidoNuevo = "";
-            for(String palabra : contenidoPalabras){
+            String[] contenidoPalabras = contenido.split(" "); //separar el contenido en palabras
+            String contenidoNuevo = ""; //contenido con las palabras reducidas a su raiz
+            for(String palabra : contenidoPalabras){ //reducir las palabras a su raiz
                 String newWord = stemmer.stem(palabra);
                 contenidoNuevo += newWord + " ";
                 if(!allWords.contains(newWord)){
@@ -57,8 +72,10 @@ public class CargaArchivos {
         this.files = new File("./temp1").listFiles(); //actualizar la lista de archivos
     }
 
-    //ahora tenemos que calcular tf-idf para cada termino almacenado en allWords
-    //para cada archivo
+    /**
+     * Metodo que se encarga de calcular tf-idf para cada termino y llama al metodo CrearJSON para crear un JSON con la estructura de tf-idf y almacenarlo en la carpeta ./obj/
+     * @throws IOException Excepcion que se lanza si no se encuentra la carpeta.
+     */
     public void CalcularTF_IDF() throws IOException {
         //key: termino, value: <IDF, <key: Documento, value: tf>>
         Map<String, AbstractMap.SimpleEntry<Double,HashMap<String,Double>>> tf_idf = new HashMap<String, AbstractMap.SimpleEntry<Double,HashMap<String,Double>>>();
@@ -103,6 +120,11 @@ public class CargaArchivos {
         CrearJSON(tf_idf);
     }
 
+    /**
+     * Metodo que se encarga de crear un JSON con la estructura de tf-idf y almacenarlo en la carpeta ./obj/ Para consultar la estructura del JSON ver la documentacion o el comentario del metodo.
+     * @param tf_idf Mapa que contiene la estructura de tf-idf.
+     * @throws IOException Excepcion que se lanza si no se encuentra la carpeta.
+     */
     public void CrearJSON(Map<String, AbstractMap.SimpleEntry<Double,HashMap<String,Double>>> tf_idf) throws IOException {
         //Hay que crear un JSON con la estructura de tf_idf
         /*
@@ -160,6 +182,11 @@ public class CargaArchivos {
 
     }
 
+    /**
+     * Metodo main de la clase CargaArchivos, se encarga de llamar a los metodos para realizar el preprocesamiento y calcular tf-idf.
+     * @param args Inutilizado.
+     * @throws IOException Excepcion que se lanza si no se encuentra la carpeta.
+     */
     public static void main(String[] args) throws IOException {
         System.out.println("Cargando archivos...");
         CargaArchivos cargaArchivos = new CargaArchivos("./temp/");
