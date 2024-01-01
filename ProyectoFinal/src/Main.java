@@ -47,7 +47,6 @@ public class Main {
         //Aqui supondremos que ya se cargaron los archivos y el mapa tf_idf se encuentra en el archivo tf_idf.json podemos usar la libreria Gson
         JsonParser parser = new JsonParser();
         JsonObject objtf_idf = (JsonObject) parser.parse(new FileReader("./obj/tf_idf.json"));
-        JsonObject objnum_palabras = (JsonObject) parser.parse(new FileReader("./obj/num_palabras.json"));
         //ahora cargaremos en memoria de ejecucion los archivos, transformado los JsonObjects en HashMaps
         Map<String, AbstractMap.SimpleEntry<Double, HashMap<String,Double>>> tf_idf = new HashMap<String, AbstractMap.SimpleEntry<Double,HashMap<String,Double>>>();
         Map<String, Double> num_palabras = new HashMap<String, Double>();
@@ -60,24 +59,14 @@ public class Main {
             }
             tf_idf.put(termino, entry);
         }
-        for(String documento : objnum_palabras.keySet()){
-            num_palabras.put(documento, objnum_palabras.get(documento).getAsDouble());
-        }
 
-        //Como estamos usando el modelo vectorial, primero normalizaremos los vectores de los documentos en los que el valor de cada documento sera: sqrt(tf1*idf^2 + tf2*idf^2 + ... + tfn*idf^2
+        //Cargamos en memoria los documentos normalizados almacenados en el archivo documentosNormalizados.json
         Map<String,Double> documentosNormalizados = new HashMap<String,Double>();
-        File[] files = new File("./temp/").listFiles();
-
-        for(File file : files){
-            String documento = file.getName();
-            double sumatoria = 0;
-            for(String termino : tf_idf.keySet()){
-                if(tf_idf.get(termino).getValue().containsKey(documento)){
-                    sumatoria += Math.pow(tf_idf.get(termino).getValue().get(documento) * tf_idf.get(termino).getKey(), 2);
-                }
-            }
-            documentosNormalizados.put(documento, Math.sqrt(sumatoria));
+        JsonObject objDocumentosNormalizados = (JsonObject) parser.parse(new FileReader("./obj/documentosNormalizados.json"));
+        for(String documento : objDocumentosNormalizados.keySet()){
+            documentosNormalizados.put(documento, objDocumentosNormalizados.get(documento).getAsDouble());
         }
+
         System.out.println("Archivos cargados");
         //ahora que tenemos los documentos normalizados, podemos realizar las operaciones de busqueda
         while (true){

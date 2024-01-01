@@ -162,24 +162,36 @@ public class CargaArchivos {
         json += "\n}";
         Files.writeString(new File("./obj/tf_idf.json").toPath(), json);
 
-        //Tambien hay que crear un JSON con cada documento y su numero de palabras
+        //Tambien hay que crear un JSON con cada documento y su valor normalizado que corresponde a recorrer los terminos de cada documento
+        //sumar el cuadrado del tf-idf de cada termino y calcular la raiz cuadrada de la suma
         /*
         {
-            "documento1": 1.0,
-            "documento2": 1.0,
-            "documento3": 1.0
+            "documento1": sqrt((tfterm1 * idfterm1)^2 + (tfterm2 * idfterm2)^2 + (tfterm3 * idfterm3)^2)
+            "documento2": sqrt((tfterm1 * idfterm1)^2 + (tfterm3 * idfterm3)^2)
+            "documento3": sqrt((tfterm2 * idfterm2)^2 + (tfterm3 * idfterm3)^2)
         }
          */
+        //Como estamos usando el modelo vectorial, primero normalizaremos los vectores de los documentos en los que el valor de cada documento sera: sqrt(tf1*idf^2 + tf2*idf^2 + ... + tfn*idf^2
+        Map<String,Double> documentosNormalizados = new HashMap<String,Double>();
+        File[] files = new File("./temp/").listFiles();
+
+        for(File file : files) {
+            String documento = file.getName();
+            double sumatoria = 0;
+            for (String termino : tf_idf.keySet()) {
+                if (tf_idf.get(termino).getValue().containsKey(documento)) {
+                    sumatoria += Math.pow(tf_idf.get(termino).getValue().get(documento) * tf_idf.get(termino).getKey(), 2);
+                }
+            }
+            documentosNormalizados.put(documento, Math.sqrt(sumatoria));
+        }
         json = "{\n";
-        for(File file : files){
-            String contenido = Files.readString(file.toPath());
-            String[] contenidoPalabras = contenido.split(" ");
-            json += "\t\"" + file.getName() + "\": " + contenidoPalabras.length + ",\n";
+        for(String documento : documentosNormalizados.keySet()){
+            json += "\t\"" + documento + "\": " + documentosNormalizados.get(documento) + ",\n";
         }
         json = json.substring(0, json.length() - 2);
         json += "\n}";
-        Files.writeString(new File("./obj/num_palabras.json").toPath(), json);
-
+        Files.writeString(new File("./obj/documentosNormalizados.json").toPath(), json);
     }
 
     /**
