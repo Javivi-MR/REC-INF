@@ -50,6 +50,7 @@ public class CargaArchivos {
             contenido = contenido.replaceAll("[.,¿?¡!=:;()+/*-]", ""); //eliminar signos de puntuacion
             contenido = contenido.replaceAll("[\"']", ""); //eliminar comillas
             contenido = contenido.replaceAll("\\s{2,}", " "); //eliminar espacios en blanco
+            contenido = contenido.replaceAll("\\n", "");
             for(String stopWord : stopWords){
                 contenido = contenido.replaceAll(" " + stopWord + " ", " "); //eliminar stop words
                 contenido = contenido.replaceAll("^" + stopWord + " ", ""); //eliminar stop words al principio
