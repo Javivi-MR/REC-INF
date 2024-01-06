@@ -94,7 +94,7 @@ public class Main {
 
                     //recorremos los documentos que contienen el termino
                     for(String documento : tf_idf.get(termino).getValue().keySet()){
-                        //calculamos el coseno de cada documento
+                        //calculamos el coseno de cada documento, tfij * idf / docNormalizadoj = wij / docNormalizadoj
                         cosenos.put(documento, tf_idf.get(termino).getValue().get(documento) * idf / documentosNormalizados.get(documento));
                     }
                     //ordenamos los documentos de mayor a menor
