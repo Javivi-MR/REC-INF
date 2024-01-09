@@ -21,6 +21,11 @@ public class CargaArchivos {
     private String[] stopWords; //lista de palabras que no aportan informacion
     private Vector<String> allWords; //lista de todos los terminos de todos los documentos
     private PorterStemmer stemmer; //stemmer para reducir las palabras a su raiz
+    private Map<String,Double> mapaFrecuenciasTerminos;
+    private Map<String, AbstractMap.SimpleEntry<Double,HashMap<String,Double>>> tf; //key: termino, value: <key: Documento, value: tf>
+    private Map<String, AbstractMap.SimpleEntry<Double,HashMap<String,Double>>> tf_idf = new HashMap<String, AbstractMap.SimpleEntry<Double,HashMap<String,Double>>>();
+    private Map<String,Double> documentosNormalizados = new HashMap<String,Double>();
+
 
     /**
      * Constructor de la clase CargaArchivos.
@@ -34,6 +39,10 @@ public class CargaArchivos {
         this.stopWords = Files.readString(file.toPath()).split(" ");
         this.stemmer = new PorterStemmer();
         this.allWords = new Vector<>();
+        this.mapaFrecuenciasTerminos = new HashMap<>();
+        this.tf = new HashMap<>();
+        this.tf_idf = new HashMap<>();
+        this.documentosNormalizados = new HashMap<>();
     }
 
     /**
@@ -42,7 +51,9 @@ public class CargaArchivos {
      * @throws IOException Excepcion que se lanza si no se encuentra la carpeta.
      */
     public void TransformarArchivos() throws IOException {
+        int i = 0;
         for (File file : files) {
+            System.out.println("Preprocesando archivo " + ++i + " de " + files.length);
             String contenido = Files.readString(file.toPath());
 
             //preprocesamiento
@@ -67,133 +78,118 @@ public class CargaArchivos {
                     allWords.add(newWord);
                 }
             }
-            //write the new content into a new file with the same name in directory ./temp1/
+            Frecuencias(contenidoNuevo.split(" "));
+            Calculartf(file.getName());
+
+            mapaFrecuenciasTerminos.clear();
             Files.writeString(new File("./temp1/" + file.getName()).toPath(), contenidoNuevo);
         }
+        calcularIDFyLongitudDocumentos();
+        CrearJSON();
+
         this.files = new File("./temp1").listFiles(); //actualizar la lista de archivos
     }
 
     /**
-     * Metodo que se encarga de calcular tf-idf para cada termino y llama al metodo CrearJSON para crear un JSON con la estructura de tf-idf y almacenarlo en la carpeta ./obj/
-     * @throws IOException Excepcion que se lanza si no se encuentra la carpeta.
+     * Metodo que se encarga de calcular la frecuencia de cada termino en cada documento y almacenar el resultado en un mapa.
+     * @param contenidoPalabras String[] que contiene las palabras de un documento.
      */
-    public void CalcularTF_IDF() throws IOException {
-        //key: termino, value: <IDF, <key: Documento, value: tf>>
-        Map<String, AbstractMap.SimpleEntry<Double,HashMap<String,Double>>> tf_idf = new HashMap<String, AbstractMap.SimpleEntry<Double,HashMap<String,Double>>>();
-
-        //recorrer todos los terminos
-        for(String termino : allWords){
-            int documentoContienePalabra = 0;
-            int frecuenciaTermino = 0;
-            double tf = 0.0;
-            double idf = 0.0;
-            HashMap<String,Double> tfMap = new HashMap<>();
-            //para cada documento
-            for(File file : files){
-                //contar cuantas veces aparece el termino en el documento
-                String contenido = Files.readString(file.toPath());
-                String[] contenidoPalabras = contenido.split(" ");
-                //recorrer todas las palabras del documento
-                for(String palabra : contenidoPalabras){
-                    if(palabra.equals(termino)){
-                        frecuenciaTermino++;
-                    }
-                }
-                //calcular tf = 1 + log2(frecuenciaTermino)
-                if(frecuenciaTermino > 0){
-                    tf = 1 + (double) Math.log(frecuenciaTermino) / Math.log(2);
-                    tfMap.put(file.getName(), tf);
-                    documentoContienePalabra++;
-                }
-                else{
-                    continue;
-                }
-                frecuenciaTermino = 0;
+    public void Frecuencias(String[] contenidoPalabras){
+        for(String palabra : contenidoPalabras){
+            if(mapaFrecuenciasTerminos.containsKey(palabra)){
+                mapaFrecuenciasTerminos.put(palabra, mapaFrecuenciasTerminos.get(palabra) + 1);
             }
-            //calcular idf = log2(NumeroTotalDocumentos / NumeroDocumentosConTermino)
-
-            idf = (double) Math.log((double) files.length / documentoContienePalabra) / Math.log(2);
-            //guardar en el mapa tf_idf
-            tf_idf.put(termino, new AbstractMap.SimpleEntry<Double,HashMap<String,Double>>(idf, tfMap));
-            //phosphoryl
+            else{
+                mapaFrecuenciasTerminos.put(palabra, 1.0);
+            }
         }
-        System.out.println(tf_idf);
-        CrearJSON(tf_idf);
+    }
+
+    /**
+     * Metodo que se encarga de calcular tf para cada termino en cada documento y almacenar el resultado en un mapa.
+     * @param nombreArchivo String que contiene el nombre del archivo.
+     */
+    public void Calculartf(String nombreArchivo){
+        for(String termino : mapaFrecuenciasTerminos.keySet()){
+            double tfValue = 1 + (double) Math.log(mapaFrecuenciasTerminos.get(termino)) / Math.log(2);
+            if(tf.containsKey(termino)){
+                tf.get(termino).getValue().put(nombreArchivo, tfValue);
+            }
+            else{
+                HashMap<String,Double> tfMap = new HashMap<>();
+                tfMap.put(nombreArchivo, tfValue);
+                tf.put(termino, new AbstractMap.SimpleEntry<Double,HashMap<String,Double>>(tfValue, tfMap));
+            }
+        }
+    }
+
+    /**
+     * Metodo que se encarga de calcular idf y la longitud de cada documento.
+     */
+    public void calcularIDFyLongitudDocumentos(){
+        int i = 0;
+        for(String termino : tf.keySet()){
+            System.out.println("Calculando IDF y longitud de documento para termino " + ++i + " de " + tf.size());
+            double idfValue = (double) Math.log((double) files.length / tf.get(termino).getValue().size()) / Math.log(2);
+            for(String documento : tf.get(termino).getValue().keySet()){
+                double tfidf = tf.get(termino).getValue().get(documento) * idfValue;
+                documentosNormalizados.put(documento, documentosNormalizados.getOrDefault(documento, 0.0) + Math.pow(tfidf, 2));
+            }
+            tf_idf.put(termino, new AbstractMap.SimpleEntry<Double,HashMap<String,Double>>(idfValue, tf.get(termino).getValue()));
+        }
+        for(String documento : documentosNormalizados.keySet()){
+            documentosNormalizados.put(documento, Math.sqrt(documentosNormalizados.get(documento)));
+        }
+        // Aquí puedes guardar documentosLongitud en un archivo o usarlo como necesites
     }
 
     /**
      * Metodo que se encarga de crear un JSON con la estructura de tf-idf y almacenarlo en la carpeta ./obj/ Para consultar la estructura del JSON ver la documentacion o el comentario del metodo.
-     * @param tf_idf Mapa que contiene la estructura de tf-idf.
      * @throws IOException Excepcion que se lanza si no se encuentra la carpeta.
      */
-    public void CrearJSON(Map<String, AbstractMap.SimpleEntry<Double,HashMap<String,Double>>> tf_idf) throws IOException {
-        //Hay que crear un JSON con la estructura de tf_idf
-        /*
-        {
-            "termino1": {
-                "idf": 1.0,
-                "tf": {
-                    "documento1": 1.0,
-                    "documento2": 1.0,
-                    "documento3": 1.0
-                }
-            },
-            "termino2": {
-                "idf": 1.0,
-                "tf": {
-                    "documento1": 1.0,
-                    "documento2": 1.0,
-                    "documento3": 1.0
-                }
-            }
-         */
-        String json = "{\n";
-        for(String termino : tf_idf.keySet()){
-            json += "\t\"" + termino + "\": {\n";
-            json += "\t\t\"idf\": " + tf_idf.get(termino).getKey() + ",\n";
-            json += "\t\t\"tf\": {\n";
-            for(String documento : tf_idf.get(termino).getValue().keySet()){
-                json += "\t\t\t\"" + documento + "\": " + tf_idf.get(termino).getValue().get(documento) + ",\n";
-            }
-            json = json.substring(0, json.length() - 2);
-            json += "\n\t\t}\n";
-            json += "\t},\n";
-        }
-        json = json.substring(0, json.length() - 2);
-        json += "\n}";
-        Files.writeString(new File("./obj/tf_idf.json").toPath(), json);
+    public void CrearJSON() throws IOException {
+        StringBuilder tfIdfJson = new StringBuilder("{\n");
+        int i = 0;
+        for (Map.Entry<String, AbstractMap.SimpleEntry<Double, HashMap<String, Double>>> entry : tf_idf.entrySet()) {
+            System.out.println("Creando JSON para termino " + ++i + " de " + tf_idf.size());
+            String termino = entry.getKey();
+            AbstractMap.SimpleEntry<Double, HashMap<String, Double>> tfIdfEntry = entry.getValue();
 
-        //Tambien hay que crear un JSON con cada documento y su valor normalizado que corresponde a recorrer los terminos de cada documento
-        //sumar el cuadrado del tf-idf de cada termino y calcular la raiz cuadrada de la suma
-        /*
-        {
-            "documento1": sqrt((tfterm1 * idfterm1)^2 + (tfterm2 * idfterm2)^2 + (tfterm3 * idfterm3)^2)
-            "documento2": sqrt((tfterm1 * idfterm1)^2 + (tfterm3 * idfterm3)^2)
-            "documento3": sqrt((tfterm2 * idfterm2)^2 + (tfterm3 * idfterm3)^2)
-        }
-         */
-        //Como estamos usando el modelo vectorial, primero normalizaremos los vectores de los documentos en los que el valor de cada documento sera: sqrt(tf1*idf^2 + tf2*idf^2 + ... + tfn*idf^2
-        Map<String,Double> documentosNormalizados = new HashMap<String,Double>();
-        File[] files = new File("./temp/").listFiles();
+            tfIdfJson.append("\t\"").append(termino).append("\": {\n");
+            tfIdfJson.append("\t\t\"idf\": ").append(tfIdfEntry.getKey()).append(",\n");
+            tfIdfJson.append("\t\t\"tf\": {\n");
 
-        for(File file : files) {
-            String documento = file.getName();
-            double sumatoria = 0;
-            for (String termino : tf_idf.keySet()) {
-                if (tf_idf.get(termino).getValue().containsKey(documento)) {
-                    sumatoria += Math.pow(tf_idf.get(termino).getValue().get(documento) * tf_idf.get(termino).getKey(), 2);
-                }
+            for (Map.Entry<String, Double> documentoEntry : tfIdfEntry.getValue().entrySet()) {
+                String documento = documentoEntry.getKey();
+                Double tfValue = documentoEntry.getValue();
+                tfIdfJson.append("\t\t\t\"").append(documento).append("\": ").append(tfValue).append(",\n");
             }
-            documentosNormalizados.put(documento, Math.sqrt(sumatoria));
+
+            tfIdfJson.setLength(tfIdfJson.length() - 2); // Eliminar la coma del último elemento
+            tfIdfJson.append("\n\t\t}\n");
+            tfIdfJson.append("\t},\n");
         }
-        json = "{\n";
-        for(String documento : documentosNormalizados.keySet()){
-            json += "\t\"" + documento + "\": " + documentosNormalizados.get(documento) + ",\n";
+
+        tfIdfJson.setLength(tfIdfJson.length() - 2); // Eliminar la coma del último elemento
+        tfIdfJson.append("\n}");
+
+        Files.writeString(new File("./obj/tf_idf.json").toPath(), tfIdfJson.toString());
+
+        // Crear el segundo JSON para documentos normalizados
+        StringBuilder documentosNormalizadosJson = new StringBuilder("{\n");
+
+        for (Map.Entry<String, Double> documentoEntry : documentosNormalizados.entrySet()) {
+            String documento = documentoEntry.getKey();
+            Double valorNormalizado = documentoEntry.getValue();
+            documentosNormalizadosJson.append("\t\"").append(documento).append("\": ").append(valorNormalizado).append(",\n");
         }
-        json = json.substring(0, json.length() - 2);
-        json += "\n}";
-        Files.writeString(new File("./obj/documentosNormalizados.json").toPath(), json);
+
+        documentosNormalizadosJson.setLength(documentosNormalizadosJson.length() - 2); // Eliminar la coma del último elemento
+        documentosNormalizadosJson.append("\n}");
+
+        Files.writeString(new File("./obj/documentosNormalizados.json").toPath(), documentosNormalizadosJson.toString());
     }
+
 
     /**
      * Metodo main de la clase CargaArchivos, se encarga de llamar a los metodos para realizar el preprocesamiento y calcular tf-idf.
@@ -204,6 +200,6 @@ public class CargaArchivos {
         System.out.println("Cargando archivos...");
         CargaArchivos cargaArchivos = new CargaArchivos("./temp/");
         cargaArchivos.TransformarArchivos();
-        cargaArchivos.CalcularTF_IDF();
+
     }
 }
