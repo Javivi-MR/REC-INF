@@ -59,9 +59,10 @@ public class CargaArchivos {
             //preprocesamiento
             contenido = contenido.toLowerCase();
             contenido = contenido.replaceAll("[.,¿?¡!=:;()+/*-]", ""); //eliminar signos de puntuacion
+            contenido = contenido.replaceAll("\\\\", ""); //eliminar barras invertidas
             contenido = contenido.replaceAll("[\"']", ""); //eliminar comillas
             contenido = contenido.replaceAll("\\s{2,}", " "); //eliminar espacios en blanco
-            contenido = contenido.replaceAll("\\n", "");
+            contenido = contenido.replaceAll("\\n", ""); //eliminar saltos de linea
             for(String stopWord : stopWords){
                 contenido = contenido.replaceAll(" " + stopWord + " ", " "); //eliminar stop words
                 contenido = contenido.replaceAll("^" + stopWord + " ", ""); //eliminar stop words al principio
@@ -97,7 +98,7 @@ public class CargaArchivos {
     public void Frecuencias(String[] contenidoPalabras){
         for(String palabra : contenidoPalabras){
             if(mapaFrecuenciasTerminos.containsKey(palabra)){
-                mapaFrecuenciasTerminos.put(palabra, mapaFrecuenciasTerminos.get(palabra) + 1);
+                mapaFrecuenciasTerminos.put(palabra, mapaFrecuenciasTerminos.get(palabra) + 1); //incrementar la frecuencia de la palabra
             }
             else{
                 mapaFrecuenciasTerminos.put(palabra, 1.0);
@@ -111,14 +112,14 @@ public class CargaArchivos {
      */
     public void Calculartf(String nombreArchivo){
         for(String termino : mapaFrecuenciasTerminos.keySet()){
-            double tfValue = 1 + (double) Math.log(mapaFrecuenciasTerminos.get(termino)) / Math.log(2);
+            double tfValue = 1 + (double) Math.log(mapaFrecuenciasTerminos.get(termino)) / Math.log(2); //calcular tf
             if(tf.containsKey(termino)){
-                tf.get(termino).getValue().put(nombreArchivo, tfValue);
+                tf.get(termino).getValue().put(nombreArchivo, tfValue); //añadir el tf al mapa <documento, tf>
             }
             else{
                 HashMap<String,Double> tfMap = new HashMap<>();
                 tfMap.put(nombreArchivo, tfValue);
-                tf.put(termino, new AbstractMap.SimpleEntry<Double,HashMap<String,Double>>(tfValue, tfMap));
+                tf.put(termino, new AbstractMap.SimpleEntry<Double,HashMap<String,Double>>(tfValue, tfMap)); //añadir el tf al mapa <termino, <documento, tf>>
             }
         }
     }
@@ -137,10 +138,9 @@ public class CargaArchivos {
             }
             tf_idf.put(termino, new AbstractMap.SimpleEntry<Double,HashMap<String,Double>>(idfValue, tf.get(termino).getValue()));
         }
-        for(String documento : documentosNormalizados.keySet()){
+        for(String documento : documentosNormalizados.keySet()) {
             documentosNormalizados.put(documento, Math.sqrt(documentosNormalizados.get(documento)));
         }
-        // Aquí puedes guardar documentosLongitud en un archivo o usarlo como necesites
     }
 
     /**
@@ -175,7 +175,6 @@ public class CargaArchivos {
 
         Files.writeString(new File("./obj/tf_idf.json").toPath(), tfIdfJson.toString());
 
-        // Crear el segundo JSON para documentos normalizados
         StringBuilder documentosNormalizadosJson = new StringBuilder("{\n");
 
         for (Map.Entry<String, Double> documentoEntry : documentosNormalizados.entrySet()) {
